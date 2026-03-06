@@ -1,20 +1,26 @@
 const {
-  Client,
-  GatewayIntentBits,
-  Partials,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
+Client,
+GatewayIntentBits,
+Partials,
+EmbedBuilder,
+ActionRowBuilder,
+ButtonBuilder,
+ButtonStyle
 } = require("discord.js");
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
-  ],
-  partials: [Partials.GuildMember]
+intents: [
+GatewayIntentBits.Guilds,
+GatewayIntentBits.GuildMembers
+],
+partials: [Partials.GuildMember]
 });
+
+/*
+=========================
+DEINE IDs
+=========================
+*/
 
 const ROLE_1 = "1477756205433618573";
 const ROLE_2 = "1470891670055817439";
@@ -23,130 +29,210 @@ const ROLE_3 = "1470453619626082314";
 const LOG_CHANNEL = "1477718800227897428";
 const REQUEST_CHANNEL = "1477718932503658651";
 
+/*
+=========================
+DM NACHRICHTEN
+=========================
+*/
+
+const ACCEPT_DM = (user, moderator) => `
+🎓 Ausbildung abgeschlossen
+
+Hallo ${user},
+
+deine Ausbildung wurde erfolgreich angenommen und abgeschlossen.
+
+Du hast nun Zugriff auf die entsprechenden Rollen und Bereiche.
+
+Wir wünschen dir weiterhin viel Erfolg auf dem Server!
+
+Bearbeitet von: ${moderator}
+`;
+
+const DENY_DM = (user, moderator) => `
+❌ Ausbildung nicht bestanden
+
+Hallo ${user},
+
+leider hast du deine Ausbildung dieses Mal nicht bestanden.
+
+Du kannst zu einem späteren Zeitpunkt erneut versuchen, die Ausbildung zu absolvieren.
+
+Bei Fragen kannst du dich gerne an das Team wenden.
+
+Bearbeitet von: ${moderator}
+`;
+
 client.once("ready", () => {
-  console.log(`Bot gestartet als ${client.user.tag}`);
+console.log(`Bot gestartet als ${client.user.tag}`);
 });
+
+/*
+=========================
+ROLLE TRIGGER
+=========================
+*/
 
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
 
-  if (!oldMember.roles.cache.has(ROLE_1) && newMember.roles.cache.has(ROLE_1)) {
+if (!oldMember.roles.cache.has(ROLE_1) && newMember.roles.cache.has(ROLE_1)) {
 
-    const channel = newMember.guild.channels.cache.get(REQUEST_CHANNEL);
-    if (!channel) return;
+const channel = newMember.guild.channels.cache.get(REQUEST_CHANNEL);
+if (!channel) return;
 
-    const embed = new EmbedBuilder()
-      .setTitle("📚 Ausbildungsanfrage")
-      .setDescription(`Der Nutzer ${newMember} hat eine Ausbildungsanfrage.`)
-      .setColor("Blue")
-      .addFields(
-        { name: "User", value: `${newMember.user.tag}`, inline: true },
-        { name: "User ID", value: `${newMember.id}`, inline: true }
-      )
-      .setTimestamp();
+const embed = new EmbedBuilder()
+.setTitle("📚 Ausbildung")
+.setDescription(`Der Nutzer ${newMember} wartet auf Bestätigung.`)
+.setColor("Blue")
+.setTimestamp();
 
-    const buttons = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`accept_${newMember.id}`)
-        .setLabel("Annehmen")
-        .setStyle(ButtonStyle.Success),
+const buttons = new ActionRowBuilder().addComponents(
 
-      new ButtonBuilder()
-        .setCustomId(`deny_${newMember.id}`)
-        .setLabel("Ablehnen")
-        .setStyle(ButtonStyle.Danger)
-    );
+new ButtonBuilder()
+.setCustomId(`accept_${newMember.id}`)
+.setLabel("Annehmen")
+.setStyle(ButtonStyle.Success),
 
-    await channel.send({
-      embeds: [embed],
-      components: [buttons]
-    });
+new ButtonBuilder()
+.setCustomId(`deny_${newMember.id}`)
+.setLabel("Ablehnen")
+.setStyle(ButtonStyle.Danger)
 
-  }
+);
+
+await channel.send({
+embeds: [embed],
+components: [buttons]
 });
+
+}
+
+});
+
+/*
+=========================
+BUTTON SYSTEM
+=========================
+*/
 
 client.on("interactionCreate", async interaction => {
 
-  if (!interaction.isButton()) return;
+if (!interaction.isButton()) return;
 
-  const [action, userId] = interaction.customId.split("_");
+const [action, userId] = interaction.customId.split("_");
 
-  const member = await interaction.guild.members.fetch(userId);
-  const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL);
+const member = await interaction.guild.members.fetch(userId);
+const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL);
 
-  if (action === "accept") {
+const disabledButtons = new ActionRowBuilder().addComponents(
 
-    await member.roles.add([ROLE_2, ROLE_3]);
+new ButtonBuilder()
+.setCustomId("accepted")
+.setLabel("Angenommen")
+.setStyle(ButtonStyle.Success)
+.setDisabled(true),
 
-    await member.send(
-`🎓 **Ausbildungsanfrage angenommen**
+new ButtonBuilder()
+.setCustomId("denied")
+.setLabel("Abgelehnt")
+.setStyle(ButtonStyle.Danger)
+.setDisabled(true)
 
-Hallo ${member.user.username},
+);
 
-deine Ausbildungsanfrage wurde erfolgreich angenommen.
+/*
+=========================
+ANNEHMEN
+=========================
+*/
 
-👤 **Bearbeitet von:** ${interaction.user.tag}
+if (action === "accept") {
 
-Du hast nun Zugriff auf die entsprechenden Ausbildungsrollen.
+await member.roles.add([ROLE_2, ROLE_3]);
+await member.roles.remove(ROLE_1);
 
-Viel Erfolg bei deiner Ausbildung!`
-    ).catch(() => {});
+await member.send(
+ACCEPT_DM(member.user.username, interaction.user.tag)
+).catch(() => {});
 
-    if (logChannel) {
-      const logEmbed = new EmbedBuilder()
-        .setTitle("✅ Ausbildung angenommen")
-        .setColor("Green")
-        .addFields(
-          { name: "Antragsteller", value: `<@${member.id}>`, inline: true },
-          { name: "Bearbeitet von", value: `<@${interaction.user.id}>`, inline: true }
-        )
-        .setTimestamp();
+const embed = new EmbedBuilder()
+.setTitle("✅ Ausbildung angenommen")
+.setDescription(`${member} wurde angenommen.`)
+.addFields(
+{ name: "Bearbeitet von", value: `<@${interaction.user.id}>` }
+)
+.setColor("Green")
+.setTimestamp();
 
-      logChannel.send({ embeds: [logEmbed] });
-    }
+await interaction.message.edit({
+embeds: [embed],
+components: [disabledButtons]
+});
 
-    await interaction.reply({
-      content: "✅ Ausbildung angenommen.",
-      ephemeral: true
-    });
+const logEmbed = new EmbedBuilder()
+.setTitle("✅ Ausbildung angenommen")
+.setColor("Green")
+.addFields(
+{ name: "User", value: `<@${member.id}>`, inline: true },
+{ name: "Bearbeitet von", value: `<@${interaction.user.id}>`, inline: true }
+)
+.setTimestamp();
 
-  }
+logChannel.send({ embeds: [logEmbed] });
 
-  if (action === "deny") {
+await interaction.reply({
+content: "✅ Entscheidung gespeichert.",
+ephemeral: true
+});
 
-    await member.roles.remove(ROLE_1);
+}
 
-    await member.send(
-`❌ **Ausbildungsanfrage abgelehnt**
+/*
+=========================
+ABLEHNEN
+=========================
+*/
 
-Hallo ${member.user.username},
+if (action === "deny") {
 
-leider wurde deine Ausbildungsanfrage abgelehnt.
+await member.roles.remove(ROLE_1);
 
-👤 **Bearbeitet von:** ${interaction.user.tag}
+await member.send(
+DENY_DM(member.user.username, interaction.user.tag)
+).catch(() => {});
 
-Falls du Fragen hast, melde dich bitte beim Team.`
-    ).catch(() => {});
+const embed = new EmbedBuilder()
+.setTitle("❌ Ausbildung abgelehnt")
+.setDescription(`${member} wurde abgelehnt.`)
+.addFields(
+{ name: "Bearbeitet von", value: `<@${interaction.user.id}>` }
+)
+.setColor("Red")
+.setTimestamp();
 
-    if (logChannel) {
-      const logEmbed = new EmbedBuilder()
-        .setTitle("❌ Ausbildung abgelehnt")
-        .setColor("Red")
-        .addFields(
-          { name: "Antragsteller", value: `<@${member.id}>`, inline: true },
-          { name: "Bearbeitet von", value: `<@${interaction.user.id}>`, inline: true }
-        )
-        .setTimestamp();
+await interaction.message.edit({
+embeds: [embed],
+components: [disabledButtons]
+});
 
-      logChannel.send({ embeds: [logEmbed] });
-    }
+const logEmbed = new EmbedBuilder()
+.setTitle("❌ Ausbildung abgelehnt")
+.setColor("Red")
+.addFields(
+{ name: "User", value: `<@${member.id}>`, inline: true },
+{ name: "Bearbeitet von", value: `<@${interaction.user.id}>`, inline: true }
+)
+.setTimestamp();
 
-    await interaction.reply({
-      content: "❌ Ausbildung abgelehnt.",
-      ephemeral: true
-    });
+logChannel.send({ embeds: [logEmbed] });
 
-  }
+await interaction.reply({
+content: "❌ Entscheidung gespeichert.",
+ephemeral: true
+});
+
+}
 
 });
 
-client.login(process.env.TOKEN); 
+client.login(process.env.TOKEN);
